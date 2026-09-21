@@ -1,0 +1,22 @@
+menu "USB BLE input switch"
+    config INPUT_SWITCH_BUTTON
+        int "Mouse HID button used to switch PCs (4=Back, 5=Forward)"
+        range 4 5
+        default 4
+    config INPUT_SWITCH_LOG_INPUT
+        bool "Print decoded USB input reports"
+        default n
+    config INPUT_SWITCH_LED_ENABLED
+        bool "Use onboard WS2812 RGB status LED"
+        default y
+    config INPUT_SWITCH_LED_GPIO
+        int "WS2812 GPIO (YD-ESP32-S3: 48)"
+        depends on INPUT_SWITCH_LED_ENABLED
+        range 0 48
+        default 48
+    config INPUT_SWITCH_LED_BRIGHTNESS
+        int "RGB channel brightness (0=off, 255=maximum)"
+        depends on INPUT_SWITCH_LED_ENABLED
+        range 0 255
+        default 2
+endmenu

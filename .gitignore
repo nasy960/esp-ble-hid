@@ -1,0 +1,49 @@
+# ESP-IDF build output and downloaded components
+build/
+build-*/
+managed_components/
+
+# Generated local configuration; keep sdkconfig.defaults and sdkconfig.ci
+sdkconfig
+sdkconfig.old
+
+# Keep dependencies.lock and main/idf_component.yml for reproducible dependencies.
+
+# Local IDE/workspace settings (may contain absolute paths)
+.metadata/
+.vscode/
+.idea/
+.settings/
+.project
+.cproject
+.clangd
+.cache/
+compile_commands.json
+
+# Local assistant settings
+.agents/
+.codex/
+
+# Python environments and test output
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+pytest_embedded_log/
+
+# Local environment variables; retain example templates
+.env
+.env.*
+!.env.example
+!.env.sample
+
+# Editor and OS temporary files
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
