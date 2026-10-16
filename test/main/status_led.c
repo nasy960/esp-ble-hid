@@ -3,6 +3,7 @@
 #include "sdkconfig.h"
 #if CONFIG_INPUT_SWITCH_LED_ENABLED
 #include <string.h>
+#include <stdatomic.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
@@ -13,6 +14,7 @@
 static const char *TAG = "status_led";
 static QueueHandle_t updates;
 static led_strip_handle_t strip;
+static atomic_bool boot_complete;
 
 static void led_task(void *arg)
 {
@@ -27,7 +29,9 @@ static void led_task(void *arg)
             epoch = esp_timer_get_time();
         }
         uint8_t rgb[3];
-        status_pattern_rgb(pattern, (uint32_t)((esp_timer_get_time()-epoch)/1000),
+        status_pattern_t visible = atomic_load(&boot_complete) ? pattern :
+                                   (status_pattern_t){.mode=STATUS_BOOTING};
+        status_pattern_rgb(visible, (uint32_t)((esp_timer_get_time()-epoch)/1000),
                            CONFIG_INPUT_SWITCH_LED_BRIGHTNESS, rgb);
         if (memcmp(rgb, previous, sizeof(rgb))) {
             esp_err_t err = led_strip_set_pixel(strip, 0, rgb[0], rgb[1], rgb[2]);
@@ -52,7 +56,10 @@ esp_err_t status_led_init(void)
     const led_strip_rmt_config_t rmt = {.resolution_hz=10000000, .flags.with_dma=false};
     esp_err_t err = led_strip_new_rmt_device(&config, &rmt, &strip);
     if (err != ESP_OK) return err;
-    err = led_strip_clear(strip);
+    // Show startup before BLE/USB initialization can block or fail.
+    err = led_strip_set_pixel(strip, 0, CONFIG_INPUT_SWITCH_LED_BRIGHTNESS,
+                             CONFIG_INPUT_SWITCH_LED_BRIGHTNESS, 0);
+    if (err == ESP_OK) err = led_strip_refresh(strip);
     if (err != ESP_OK) { led_strip_del(strip); strip=NULL; return err; }
     updates = xQueueCreate(1, sizeof(status_pattern_t));
     if (!updates) { led_strip_del(strip); strip=NULL; return ESP_ERR_NO_MEM; }
@@ -60,9 +67,13 @@ esp_err_t status_led_init(void)
         vQueueDelete(updates); updates=NULL; led_strip_del(strip); strip=NULL;
         return ESP_ERR_NO_MEM;
     }
-    ESP_LOGI(TAG, "WS2812 GPIO%d brightness=%d/255; A=blue B=green",
+    ESP_LOGI(TAG, "WS2812 GPIO%d brightness=%d/255; boot=yellow A=green B=blue",
              CONFIG_INPUT_SWITCH_LED_GPIO, CONFIG_INPUT_SWITCH_LED_BRIGHTNESS);
     return ESP_OK;
+}
+void status_led_boot_complete(void)
+{
+    atomic_store(&boot_complete, true);
 }
 void status_led_update(unsigned selected, bool selected_ready, int pairing_slot, bool no_devices)
 {
@@ -73,5 +84,6 @@ void status_led_update(unsigned selected, bool selected_ready, int pairing_slot,
 }
 #else
 esp_err_t status_led_init(void) { return ESP_OK; }
+void status_led_boot_complete(void) {}
 void status_led_update(unsigned selected, bool selected_ready, int pairing_slot, bool no_devices) {}
 #endif

@@ -11,6 +11,12 @@ status_pattern_t status_pattern_select(unsigned selected, bool selected_ready, i
 void status_pattern_rgb(status_pattern_t p, uint32_t elapsed_ms,
                         uint8_t brightness, uint8_t rgb[3])
 {
+    if (p.mode == STATUS_BOOTING) {
+        rgb[0] = brightness;
+        rgb[1] = brightness;
+        rgb[2] = 0;
+        return;
+    }
     uint32_t period = p.mode == STATUS_PAIRING ? 250 : p.mode == STATUS_READY ? 1000 : 2000;
     uint32_t on_time = p.mode == STATUS_PAIRING ? 125 : p.mode == STATUS_READY ? 500 : 100;
     bool on = p.mode != STATUS_NONE && elapsed_ms % period < on_time;

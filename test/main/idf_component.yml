@@ -1,4 +1,6 @@
 dependencies:
   idf: ">=6.0"
-  espressif/usb_host_hid: "^1.0.1"
+  espressif/usb_host_hid:
+    version: "1.2.1"
+    override_path: "../components/usb_host_hid"
   espressif/led_strip: "^3.0.0"

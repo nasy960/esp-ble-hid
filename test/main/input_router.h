@@ -22,6 +22,8 @@ typedef struct {
 } router_output_t;
 void input_router_init(input_router_t *r, unsigned switch_button);
 void input_router_block_held(input_router_t *r);
+// Call after restoring source state on input queue loss. Suppress held controls.
+void input_router_recover(input_router_t *r);
 void input_router_select(input_router_t *r, unsigned target);
 bool input_router_reset_due(input_router_t *r, uint64_t now_ms);
 void input_router_apply(input_router_t *r, unsigned source, const hid_input_t *input,

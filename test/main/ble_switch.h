@@ -7,3 +7,5 @@ void ble_switch_usb_connected(unsigned source);
 void ble_switch_release_input(unsigned source);
 void ble_switch_remove(unsigned source);
 void ble_switch_command(const char *command);
+
+uint8_t ble_switch_leds(void);

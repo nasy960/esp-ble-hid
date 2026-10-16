@@ -2,7 +2,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-typedef enum { STATUS_NONE, STATUS_WAITING, STATUS_READY, STATUS_PAIRING } status_mode_t;
+typedef enum { STATUS_NONE, STATUS_WAITING, STATUS_READY, STATUS_PAIRING, STATUS_BOOTING } status_mode_t;
 typedef struct {
     unsigned slot;
     status_mode_t mode;

@@ -6,6 +6,7 @@
 #include "ble_report_map.h"
 #include "status_pattern.h"
 #include "mouse_pending.h"
+#include "keyboard_pending.h"
 
 // Captured from the user's 05AC:024F receiver: 5 keys plus vendor byte.
 static const uint8_t keyboard[] = {
@@ -237,4 +238,72 @@ static void mouse_pending_tests(void)
     mouse_pending_clear(&q); // Switching/disconnect must not replay old movement.
     assert(!mouse_pending_peek(&q,report));
 }
-int main(void) { parser_tests(); router_tests(); pairing_tests(); reset_shortcut_tests(); led_tests(); mouse_pending_tests(); puts("HID, routing, pairing/reset, LED and mouse retry tests passed"); }
+static void recovery_tests(void)
+{
+    input_router_t r;
+    router_output_t out;
+    hid_input_t held = {0}, up = {.keyboard=true};
+    put_key(&held, 0xe0); put_key(&held, 0xe2); put_key(&held, 0x45);
+    input_router_init(&r, 4);
+    memcpy(r.keys[0], held.keys, HID_KEYS_BYTES);
+    r.buttons[1] = 8;
+    input_router_recover(&r);
+    input_router_apply(&r, 0, &held, false, true, &out);
+    assert(!out.switch_requested && !out.switched && !out.keyboard[2]);
+    hid_input_t mouse_up = {.mouse=true};
+    input_router_apply(&r, 1, &mouse_up, false, true, &out);
+    input_router_apply(&r, 0, &up, false, true, &out);
+    input_router_apply(&r, 0, &held, false, true, &out);
+    assert(out.switched); // A fresh press still works after recovery.
+
+    memset(&held, 0, sizeof(held));
+    put_key(&held, 0xe0); put_key(&held, 0xe2); put_key(&held, 0xe1); put_key(&held, 0x2a);
+    input_router_init(&r, 4);
+    memcpy(r.keys[0], held.keys, HID_KEYS_BYTES);
+    input_router_recover(&r);
+    input_router_apply(&r, 0, &held, false, false, &out);
+    assert(!input_router_reset_due(&r, 0) && !input_router_reset_due(&r, 10000));
+    input_router_apply(&r, 0, &up, false, false, &out);
+    input_router_apply(&r, 0, &held, false, false, &out);
+    assert(!input_router_reset_due(&r, 10000) && input_router_reset_due(&r, 13000));
+
+    // A release/removal present in the physical snapshot must not leave ghost keys.
+    input_router_init(&r, 4);
+    memset(&held, 0, sizeof(held)); put_key(&held, 4);
+    memcpy(r.keys[2], held.keys, HID_KEYS_BYTES);
+    input_router_recover(&r);
+    input_router_apply(&r, 2, &held, false, true, &out); assert(!out.keyboard[2]);
+    input_router_apply(&r, 2, &up, true, true, &out);
+    input_router_apply(&r, 0, &held, false, true, &out); assert(out.keyboard[2] == 4);
+}
+static void keyboard_pending_tests(void)
+{
+    keyboard_pending_t q = {0};
+    uint8_t down[8] = {0,0,4}, up[8] = {0};
+    assert(keyboard_pending_push(&q, down));
+    // Notification failures leave the front intact; release and repeated press
+    // must survive behind it instead of collapsing into a single long hold.
+    assert(!memcmp(keyboard_pending_peek(&q), down, 8));
+    assert(keyboard_pending_push(&q, up));
+    assert(keyboard_pending_push(&q, down));
+    assert(keyboard_pending_push(&q, down) && q.count == 3);
+    const uint8_t *expected[] = {down, up, down};
+    for (unsigned i = 0; i < 3; ++i) {
+        assert(!memcmp(keyboard_pending_peek(&q), expected[i], 8));
+        keyboard_pending_commit(&q);
+    }
+    assert(!keyboard_pending_peek(&q));
+    for (unsigned cycle = 0; cycle < 3; ++cycle) {
+        for (unsigned i = 0; i < KEYBOARD_PENDING_REPORTS; ++i)
+            assert(keyboard_pending_push(&q, i & 1 ? down : up));
+        assert(!keyboard_pending_push(&q, up));
+        for (unsigned i = 0; i < KEYBOARD_PENDING_REPORTS; ++i) {
+            assert(!memcmp(keyboard_pending_peek(&q), i & 1 ? down : up, 8));
+            keyboard_pending_commit(&q);
+        }
+    }
+    assert(keyboard_pending_push(&q, down));
+    keyboard_pending_clear(&q);
+    assert(!keyboard_pending_peek(&q)); // Neutralization never replays stale keys.
+}
+int main(void) { parser_tests(); router_tests(); pairing_tests(); reset_shortcut_tests(); led_tests(); mouse_pending_tests(); keyboard_pending_tests(); recovery_tests(); puts("HID, routing, pairing/reset, LED and keyboard/mouse retry tests passed"); }

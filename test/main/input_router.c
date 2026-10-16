@@ -113,3 +113,15 @@ void input_router_apply(input_router_t *r, unsigned source, const hid_input_t *i
         out->mouse[6] = (uint8_t)(int8_t)clamp(input->pan, -127, 127);
     }
 }
+
+void input_router_recover(input_router_t *r)
+{
+    // Prime shortcut edge detectors from the restored physical state without
+    // executing commands. Held controls must be released before reuse.
+    const hid_input_t unchanged = {0};
+    router_output_t discard;
+    input_router_apply(r, 0, &unchanged, false, false, &discard);
+    input_router_block_held(r);
+    r->reset_timing = false;
+    r->reset_fired = r->reset_held;
+}

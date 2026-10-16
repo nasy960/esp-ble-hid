@@ -17,6 +17,8 @@ typedef struct {
 typedef struct {
     uint8_t ids[HID_LAYOUT_REPORTS];
     uint16_t bits[HID_LAYOUT_REPORTS];
+    uint16_t output_bits[HID_LAYOUT_REPORTS], led_offset[HID_LAYOUT_REPORTS][5];
+    bool output_other[HID_LAYOUT_REPORTS];
     unsigned reports, fields;
     bool has_ids;
     hid_field_t field[HID_LAYOUT_FIELDS];
@@ -33,3 +35,4 @@ typedef struct {
 bool hid_layout_parse(hid_layout_t *out, const uint8_t *desc, size_t len);
 bool hid_layout_decode(const hid_layout_t *layout, const uint8_t *data,
                        size_t len, hid_input_t *out);
+size_t hid_layout_led_report(const hid_layout_t *layout, unsigned report, uint8_t leds, uint8_t data[HID_INPUT_BYTES]);

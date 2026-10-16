@@ -89,6 +89,23 @@ bool hid_layout_parse(hid_layout_t *out, const uint8_t *desc, size_t len)
                 if (!collections) return false;
                 --collections;
             }
+            if (item == 9) { // Output bit positions are independent of Input.
+                if (!g.size || g.size > 32 || !g.count || g.count > 512) return false;
+                int r = report_index(out, g.id);
+                if (r < 0) return false;
+                unsigned offset = out->output_bits[r], bits = g.size*g.count;
+                if (offset+bits > (HID_INPUT_BYTES-1)*8) return false;
+                out->output_bits[r] += bits;
+                if (!(v&1)) for (unsigned i=0;i<g.count;++i) {
+                    uint32_t u = usage_count ? usages[i<usage_count ? i : usage_count-1] :
+                        has_min && has_max && usage_max>=usage_min ?
+                        usage_min+(i<usage_max-usage_min ? i : usage_max-usage_min) : 0;
+                    unsigned usage = u&0xffff;
+                    if ((v&2) && g.size==1 && (u>>16)==8 && usage>=1 && usage<=5)
+                        out->led_offset[r][usage-1] = offset+i+1;
+                    else out->output_other[r] = true; // Don't zero unrelated output controls.
+                }
+            }
             if (item == 8) {
                 if (!g.size || g.size > 32 || !g.count || g.count > 512) return false;
                 int r = report_index(out, g.id);
@@ -175,4 +192,19 @@ bool hid_layout_decode(const hid_layout_t *layout, const uint8_t *data,
         }
     }
     return out->keyboard || out->mouse;
+}
+
+size_t hid_layout_led_report(const hid_layout_t *layout, unsigned report, uint8_t leds, uint8_t data[HID_INPUT_BYTES])
+{
+    if (report >= layout->reports || layout->output_other[report]) return 0;
+    bool found = false;
+    memset(data,0,HID_INPUT_BYTES);
+    unsigned prefix = layout->has_ids ? 1 : 0;
+    if (prefix) data[0] = layout->ids[report];
+    for(unsigned i=0;i<5;++i) if(layout->led_offset[report][i]) {
+        found = true;
+        unsigned bit = layout->led_offset[report][i]-1;
+        if(leds & (1u<<i)) data[prefix+bit/8] |= 1u<<(bit%8);
+    }
+    return found ? prefix+(layout->output_bits[report]+7)/8 : 0;
 }
